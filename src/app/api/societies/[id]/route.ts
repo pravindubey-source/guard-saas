@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { computeFlatFieldsFromLines } from "@/lib/rateConfig";
+
+const rateLineSchema = z.object({
+  designationId: z.string().min(1),
+  ratePerGuardMonthly: z.number().nonnegative(),
+  dayGuardsRequired: z.number().int().nonnegative().default(0),
+  nightGuardsRequired: z.number().int().nonnegative().default(0),
+});
 
 const rateSchema = z.object({
   ratePerGuardMonthly: z.number().nonnegative(),
@@ -9,7 +17,10 @@ const rateSchema = z.object({
   nightGuardsRequired: z.number().int().nonnegative(),
   totalAgreedAmount: z.number().nonnegative(),
   withGST: z.boolean(),
+  gstMode: z.enum(["COLLECTED_BY_US", "PAID_DIRECTLY_BY_SOCIETY"]).default("COLLECTED_BY_US"),
   gstPercentage: z.number().nonnegative(),
+  // Designation-wise rate rows. Empty/omitted = flat-rate mode (the fields above are used as-is).
+  lines: z.array(rateLineSchema).default([]),
 });
 
 export const dynamic = "force-dynamic";
@@ -35,7 +46,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const society = await prisma.society.findUnique({
     where: { id: params.id },
     include: {
-      rateConfig: true,
+      rateConfig: { include: { lines: { include: { designation: true } } } },
       assignments: { where: { isActive: true }, include: { guard: { include: { designation: true } } } },
       invoices: { orderBy: { createdAt: "desc" }, take: 10 },
     },
@@ -52,24 +63,32 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
   const { rateConfig, contactEmail, ...rest } = parsed.data;
 
+  const rateParts = rateConfig
+    ? (() => {
+        const { lines: rcLines, ...flatRate } = rateConfig;
+        const mergedFlat = rcLines.length > 0 ? { ...flatRate, ...computeFlatFieldsFromLines(rcLines) } : flatRate;
+        return { mergedFlat, lines: rcLines };
+      })()
+    : undefined;
+
   try {
     const society = await prisma.society.update({
       where: { id: params.id },
       data: {
         ...rest,
         ...(contactEmail !== undefined ? { contactEmail: contactEmail || null } : {}),
-        ...(rateConfig
+        ...(rateParts
           ? {
               rateConfig: {
                 upsert: {
-                  create: rateConfig,
-                  update: rateConfig,
+                  create: { ...rateParts.mergedFlat, lines: { create: rateParts.lines } },
+                  update: { ...rateParts.mergedFlat, lines: { deleteMany: {}, create: rateParts.lines } },
                 },
               },
             }
           : {}),
       },
-      include: { rateConfig: true },
+      include: { rateConfig: { include: { lines: { include: { designation: true } } } } },
     });
     return NextResponse.json({ society });
   } catch {

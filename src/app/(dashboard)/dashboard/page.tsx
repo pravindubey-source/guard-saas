@@ -31,8 +31,11 @@ type Summary = {
     withGST: boolean;
   }[];
   recentInvoices: { id: string; invoiceNumber: string; totalAmount: string; status: string; society: { name: string } }[];
+  societyId: string | null;
   generatedAt: string;
 };
+
+type SocietyOption = { id: string; name: string };
 
 function inr(n: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
@@ -40,15 +43,18 @@ function inr(n: number) {
 
 export default function DashboardPage() {
   const [data, setData] = useState<Summary | null>(null);
+  const [societies, setSocieties] = useState<SocietyOption[]>([]);
+  const [societyFilter, setSocietyFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (societyId: string) => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/dashboard/summary", { cache: "no-store" });
+      const params = societyId ? `?societyId=${societyId}` : "";
+      const res = await fetch(`/api/dashboard/summary${params}`, { cache: "no-store" });
       if (!res.ok) throw new Error("Request failed");
       const json = await res.json();
       setData(json);
@@ -61,11 +67,17 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    fetch("/api/societies")
+      .then((r) => r.json())
+      .then((d) => setSocieties((d.societies || []).filter((s: any) => s.isActive).map((s: any) => ({ id: s.id, name: s.name }))));
+  }, []);
 
-  if (loading && !data) return <p className="text-slate-500">Loading dashboard…</p>;
-  if (error && !data) return <p className="text-red-600">{error}</p>;
+  useEffect(() => {
+    load(societyFilter);
+  }, [load, societyFilter]);
+
+  if (loading && !data) return <p className="text-slate-500 dark:text-slate-400">Loading dashboard…</p>;
+  if (error && !data) return <p className="text-red-600 dark:text-red-400">{error}</p>;
   if (!data) return null;
 
   return (
@@ -73,15 +85,30 @@ export default function DashboardPage() {
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Operations Dashboard</h1>
-          <p className="text-slate-500 text-sm">Real-time overview of societies, manpower and billing</p>
+          <p className="text-slate-500 dark:text-slate-400 text-sm">
+            {societyFilter ? `Overview for ${societies.find((s) => s.id === societyFilter)?.name || "selected society"}` : "Real-time overview of societies, manpower and billing"}
+          </p>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <button onClick={load} disabled={loading} className="btn-secondary">
-            {loading ? "Refreshing…" : "↻ Refresh"}
-          </button>
-          {lastRefreshed && (
-            <p className="text-xs text-slate-400">Last refreshed: {lastRefreshed.toLocaleTimeString("en-IN")}</p>
-          )}
+        <div className="flex items-end gap-3">
+          <div>
+            <label className="label">Society</label>
+            <select className="input min-w-[200px]" value={societyFilter} onChange={(e) => setSocietyFilter(e.target.value)}>
+              <option value="">All Societies</option>
+              {societies.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            <button onClick={() => load(societyFilter)} disabled={loading} className="btn-secondary">
+              {loading ? "Refreshing…" : "↻ Refresh"}
+            </button>
+            {lastRefreshed && (
+              <p className="text-xs text-slate-400 dark:text-slate-500">Last refreshed: {lastRefreshed.toLocaleTimeString("en-IN")}</p>
+            )}
+          </div>
         </div>
       </div>
 
@@ -98,18 +125,18 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard label="Monthly Billable (Client)" value={inr(data.monthlyBillableRevenue)} accent="text-brand-600" />
-        <StatCard label="Monthly Payroll (Deployed)" value={inr(data.monthlyPayroll)} accent="text-slate-700" />
+        <StatCard label="Monthly Payroll (Deployed)" value={inr(data.monthlyPayroll)} accent="text-slate-700 dark:text-slate-300" />
         <StatCard
           label="Estimated Monthly Margin"
           value={inr(data.estimatedMonthlyMargin)}
-          accent={data.estimatedMonthlyMargin >= 0 ? "text-emerald-600" : "text-red-600"}
+          accent={data.estimatedMonthlyMargin >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}
         />
       </div>
 
       <div className="card p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold">Society-wise Deployment (Day / Night)</h2>
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-slate-400 dark:text-slate-500">
             Sanctioned total: {data.sanctionedDayTotal} day · {data.sanctionedNightTotal} night
           </span>
         </div>
@@ -128,10 +155,10 @@ export default function DashboardPage() {
               {data.societyBreakdown.map((s) => (
                 <tr key={s.id}>
                   <td className="font-medium">{s.name}</td>
-                  <td className={s.dayDeployed < s.daySanctioned ? "text-amber-600 font-medium" : ""}>
+                  <td className={s.dayDeployed < s.daySanctioned ? "text-amber-600 dark:text-amber-400 font-medium" : ""}>
                     {s.daySanctioned} / {s.dayDeployed}
                   </td>
-                  <td className={s.nightDeployed < s.nightSanctioned ? "text-amber-600 font-medium" : ""}>
+                  <td className={s.nightDeployed < s.nightSanctioned ? "text-amber-600 dark:text-amber-400 font-medium" : ""}>
                     {s.nightSanctioned} / {s.nightDeployed}
                   </td>
                   <td>{inr(s.monthlyAmount)}</td>
@@ -140,7 +167,7 @@ export default function DashboardPage() {
               ))}
               {data.societyBreakdown.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="text-center text-slate-400 py-6">
+                  <td colSpan={5} className="text-center text-slate-400 dark:text-slate-500 py-6">
                     No active societies yet. Add one to get started.
                   </td>
                 </tr>
@@ -174,13 +201,13 @@ export default function DashboardPage() {
                   <td>{inv.society.name}</td>
                   <td>{inr(Number(inv.totalAmount))}</td>
                   <td>
-                    <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-slate-100">{inv.status}</span>
+                    <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-slate-100 dark:bg-slate-800">{inv.status}</span>
                   </td>
                 </tr>
               ))}
               {data.recentInvoices.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="text-center text-slate-400 py-6">
+                  <td colSpan={4} className="text-center text-slate-400 dark:text-slate-500 py-6">
                     No invoices generated yet.
                   </td>
                 </tr>
@@ -193,7 +220,7 @@ export default function DashboardPage() {
       <div className="card p-5 flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="font-semibold">Need to look at raw records?</h2>
-          <p className="text-sm text-slate-500">Browse every table directly, including full history.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Browse every table directly, including full history.</p>
         </div>
         <Link href="/database" className="btn-secondary">
           Explore Database →

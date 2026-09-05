@@ -52,9 +52,12 @@ export async function POST(req: NextRequest) {
 
   const gstPercentage = rate.withGST ? new Prisma.Decimal(rate.gstPercentage) : new Prisma.Decimal(0);
   const gstAmount = baseAmount.mul(gstPercentage).div(100);
-  const totalAmount = baseAmount.plus(gstAmount);
+  // When GST is paid directly to the government by the society, it's shown on the invoice for
+  // reference only and excluded from the amount we actually collect.
+  const totalAmount = rate.gstMode === "PAID_DIRECTLY_BY_SOCIETY" ? baseAmount : baseAmount.plus(gstAmount);
 
-  const invoiceNumber = `INV-${society.code || society.id.slice(0, 5).toUpperCase()}-${Date.now().toString().slice(-6)}`;
+  const invoiceCount = await prisma.invoice.count();
+  const invoiceNumber = String(invoiceCount + 1).padStart(4, "0");
 
   try {
     const invoice = await prisma.invoice.create({
@@ -67,6 +70,7 @@ export async function POST(req: NextRequest) {
         baseAmount,
         gstPercentage,
         gstAmount,
+        gstMode: rate.gstMode,
         totalAmount,
         notes: notes || null,
       },

@@ -10,6 +10,9 @@ const entrySchema = z.object({
   date: z.string().min(1),
   status: z.enum(["PRESENT", "ABSENT", "HALF_DAY", "LEAVE", "WEEKLY_OFF"]),
   shiftType: z.enum(["DAY", "NIGHT", "GENERAL", "ROTATIONAL"]).default("GENERAL"),
+  // Set when the shift was edited on the attendance page for this date only (not the guard's default assignment
+  // shift) — lets us move the existing record instead of leaving a stale duplicate under the old shift.
+  previousShiftType: z.enum(["DAY", "NIGHT", "GENERAL", "ROTATIONAL"]).optional(),
   remarks: z.string().optional().nullable(),
 });
 
@@ -40,21 +43,33 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
   try {
-    const results = await prisma.$transaction(
-      parsed.data.entries.map((e) =>
-        prisma.attendance.upsert({
-          where: {
-            guardId_date_shiftType: {
-              guardId: e.guardId,
-              date: new Date(e.date),
-              shiftType: e.shiftType,
-            },
+    const results = await prisma.$transaction(async (tx) => {
+      const out = [];
+      for (const e of parsed.data.entries) {
+        const date = new Date(e.date);
+        // Shift was corrected for this date only — move the existing record instead of leaving
+        // a stale duplicate behind under the old shift.
+        if (e.previousShiftType && e.previousShiftType !== e.shiftType) {
+          await tx.attendance.deleteMany({
+            where: { guardId: e.guardId, date, shiftType: e.previousShiftType },
+          });
+        }
+        const rec = await tx.attendance.upsert({
+          where: { guardId_date_shiftType: { guardId: e.guardId, date, shiftType: e.shiftType } },
+          create: {
+            guardId: e.guardId,
+            societyId: e.societyId,
+            date,
+            status: e.status,
+            shiftType: e.shiftType,
+            remarks: e.remarks,
           },
-          create: { ...e, date: new Date(e.date) },
           update: { status: e.status, remarks: e.remarks },
-        })
-      )
-    );
+        });
+        out.push(rec);
+      }
+      return out;
+    });
     return NextResponse.json({ attendance: results }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Failed to save attendance" }, { status: 500 });

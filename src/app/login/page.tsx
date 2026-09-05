@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { COMPANY } from "@/lib/company";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -38,11 +39,9 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-900 via-brand-700 to-brand-500 px-4">
       <div className="card w-full max-w-sm p-8">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 h-12 w-12 rounded-xl bg-brand-600 flex items-center justify-center text-white text-xl font-bold">
-            GS
-          </div>
-          <h1 className="text-xl font-semibold">Guard SaaS</h1>
-          <p className="text-sm text-slate-500">Sign in to manage your operations</p>
+          <img src={COMPANY.logoPath} alt={`${COMPANY.name} logo`} className="mx-auto mb-3 h-16 w-16 rounded-full bg-white object-contain" />
+          <h1 className="text-xl font-semibold">{COMPANY.name}</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Sign in to manage your operations</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -67,12 +66,12 @@ export default function LoginPage() {
               placeholder="••••••••"
             />
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           <button type="submit" disabled={loading} className="btn-primary w-full">
             {loading ? "Signing in..." : "Sign in"}
           </button>
         </form>
-        <p className="mt-6 text-xs text-center text-slate-400">
+        <p className="mt-6 text-xs text-center text-slate-400 dark:text-slate-500">
           Default credentials are set during database seeding (see README).
         </p>
       </div>

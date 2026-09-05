@@ -39,6 +39,11 @@ enum InvoiceStatus {
   CANCELLED
 }
 
+enum GstMode {
+  COLLECTED_BY_US // GST is included in our collectable total, payable to us
+  PAID_DIRECTLY_BY_SOCIETY // GST is shown for reference only; society pays it directly to the government
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -51,45 +56,66 @@ model User {
 }
 
 model Society {
-  id              String   @id @default(cuid())
-  name            String
-  code            String?  @unique // internal short code
-  address         String
-  city            String
-  state           String
-  pincode         String?
-  billingAddress  String?
-  contactPerson   String
-  contactPhone    String
-  contactEmail    String?
-  gstNumber       String?
-  isActive        Boolean  @default(true)
-  notes           String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(cuid())
+  name           String
+  code           String?  @unique // internal short code
+  address        String
+  city           String
+  state          String
+  pincode        String?
+  billingAddress String?
+  contactPerson  String
+  contactPhone   String
+  contactEmail   String?
+  gstNumber      String?
+  isActive       Boolean  @default(true)
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  rateConfig   RateConfig?
-  assignments  Assignment[]
-  attendance   Attendance[]
-  invoices     Invoice[]
+  rateConfig  RateConfig?
+  assignments Assignment[]
+  attendance  Attendance[]
+  invoices    Invoice[]
 }
 
 // Pricing & billing setup per society
 model RateConfig {
-  id                  String   @id @default(cuid())
-  societyId           String   @unique
-  society             Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  id        String  @id @default(cuid())
+  societyId String  @unique
+  society   Society @relation(fields: [societyId], references: [id], onDelete: Cascade)
 
-  ratePerGuardMonthly  Decimal  @db.Decimal(12, 2) // amount client pays per guard per month
-  shiftHours           Int      @default(12)
-  dayGuardsRequired    Int      @default(0) // sanctioned strength for day shift, per contract
-  nightGuardsRequired  Int      @default(0) // sanctioned strength for night shift, per contract
-  totalAgreedAmount    Decimal  @db.Decimal(12, 2) // total monthly amount agreed with client
-  withGST              Boolean  @default(true)
-  gstPercentage        Decimal  @db.Decimal(5, 2) @default(18.00)
-  effectiveFrom        DateTime @default(now())
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  ratePerGuardMonthly Decimal  @db.Decimal(12, 2) // amount client pays per guard per month
+  shiftHours          Int      @default(12)
+  dayGuardsRequired   Int      @default(0) // sanctioned strength for day shift, per contract
+  nightGuardsRequired Int      @default(0) // sanctioned strength for night shift, per contract
+  totalAgreedAmount   Decimal  @db.Decimal(12, 2) // total monthly amount agreed with client
+  withGST             Boolean  @default(true)
+  gstMode             GstMode  @default(COLLECTED_BY_US)
+  gstPercentage       Decimal  @default(18.00) @db.Decimal(5, 2)
+  effectiveFrom       DateTime @default(now())
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  lines RateConfigLine[]
+}
+
+// Optional per-designation rate breakdown for a society. When present, the parent RateConfig's
+// totalAgreedAmount / dayGuardsRequired / nightGuardsRequired are auto-computed as the sum across
+// these rows. A RateConfig with no lines keeps using its own flat fields directly (legacy behavior).
+model RateConfigLine {
+  id                  String      @id @default(cuid())
+  rateConfigId        String
+  rateConfig          RateConfig  @relation(fields: [rateConfigId], references: [id], onDelete: Cascade)
+  designationId       String
+  designation         Designation @relation(fields: [designationId], references: [id])
+  ratePerGuardMonthly Decimal     @db.Decimal(12, 2)
+  dayGuardsRequired   Int         @default(0)
+  nightGuardsRequired Int         @default(0)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  @@index([rateConfigId])
 }
 
 model Designation {
@@ -98,24 +124,28 @@ model Designation {
   rank      Int      @default(0) // for sorting hierarchy
   createdAt DateTime @default(now())
 
-  guards Guard[]
+  guards          Guard[]
+  rateConfigLines RateConfigLine[]
 }
 
 model Guard {
-  id             String    @id @default(cuid())
-  name           String
-  phone          String
-  altPhone       String?
-  address        String?
-  designationId  String
-  designation    Designation @relation(fields: [designationId], references: [id])
-  actualSalary   Decimal   @db.Decimal(12, 2) // what we pay the guard
-  joiningDate    DateTime  @default(now())
-  aadharNumber   String?
-  photoUrl       String?
-  isActive       Boolean   @default(true)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                String      @id @default(cuid())
+  name              String
+  phone             String
+  altPhone          String?
+  address           String?
+  designationId     String
+  designation       Designation @relation(fields: [designationId], references: [id])
+  actualSalary      Decimal     @db.Decimal(12, 2) // what we pay the guard
+  joiningDate       DateTime    @default(now())
+  aadharNumber      String?
+  aadharDocData     String? // base64-encoded Aadhaar file content (PDF or image)
+  aadharDocFileName String?
+  aadharDocMimeType String?
+  photoUrl          String?
+  isActive          Boolean     @default(true)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
   assignments Assignment[]
   attendance  Attendance[]
@@ -123,52 +153,53 @@ model Guard {
 
 // Maps a guard to a society + shift
 model Assignment {
-  id         String    @id @default(cuid())
-  guardId    String
-  guard      Guard     @relation(fields: [guardId], references: [id], onDelete: Cascade)
-  societyId  String
-  society    Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  shiftType  ShiftType @default(GENERAL)
-  startDate  DateTime  @default(now())
-  endDate    DateTime?
-  isActive   Boolean   @default(true)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id        String    @id @default(cuid())
+  guardId   String
+  guard     Guard     @relation(fields: [guardId], references: [id], onDelete: Cascade)
+  societyId String
+  society   Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  shiftType ShiftType @default(GENERAL)
+  startDate DateTime  @default(now())
+  endDate   DateTime?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@index([societyId])
   @@index([guardId])
 }
 
 model Attendance {
-  id         String            @id @default(cuid())
-  guardId    String
-  guard      Guard             @relation(fields: [guardId], references: [id], onDelete: Cascade)
-  societyId  String
-  society    Society           @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  date       DateTime          @db.Date
-  status     AttendanceStatus  @default(PRESENT)
-  shiftType  ShiftType         @default(GENERAL)
-  remarks    String?
-  createdAt  DateTime          @default(now())
+  id        String           @id @default(cuid())
+  guardId   String
+  guard     Guard            @relation(fields: [guardId], references: [id], onDelete: Cascade)
+  societyId String
+  society   Society          @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  date      DateTime         @db.Date
+  status    AttendanceStatus @default(PRESENT)
+  shiftType ShiftType        @default(GENERAL)
+  remarks   String?
+  createdAt DateTime         @default(now())
 
   @@unique([guardId, date, shiftType])
   @@index([societyId, date])
 }
 
 model Invoice {
-  id             String        @id @default(cuid())
-  invoiceNumber  String        @unique
-  societyId      String
-  society        Society       @relation(fields: [societyId], references: [id])
-  periodStart    DateTime      @db.Date
-  periodEnd      DateTime      @db.Date
-  guardsBilled   Int
-  baseAmount     Decimal       @db.Decimal(12, 2)
-  gstPercentage  Decimal       @db.Decimal(5, 2) @default(0)
-  gstAmount      Decimal       @db.Decimal(12, 2) @default(0)
-  totalAmount    Decimal       @db.Decimal(12, 2)
-  status         InvoiceStatus @default(DRAFT)
-  notes          String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  societyId     String
+  society       Society       @relation(fields: [societyId], references: [id])
+  periodStart   DateTime      @db.Date
+  periodEnd     DateTime      @db.Date
+  guardsBilled  Int
+  baseAmount    Decimal       @db.Decimal(12, 2)
+  gstPercentage Decimal       @default(0) @db.Decimal(5, 2)
+  gstAmount     Decimal       @default(0) @db.Decimal(12, 2)
+  gstMode       GstMode       @default(COLLECTED_BY_US) // snapshot of the society's GST mode at generation time
+  totalAmount   Decimal       @db.Decimal(12, 2)
+  status        InvoiceStatus @default(DRAFT)
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 }

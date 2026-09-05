@@ -8,6 +8,15 @@ const schema = z.object({
   status: z.enum(["DRAFT", "SENT", "PAID", "OVERDUE", "CANCELLED"]),
 });
 
+export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const invoice = await prisma.invoice.findUnique({
+    where: { id: params.id },
+    include: { society: { include: { rateConfig: true } } },
+  });
+  if (!invoice) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json({ invoice });
+}
+
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);

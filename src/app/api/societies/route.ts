@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { computeFlatFieldsFromLines } from "@/lib/rateConfig";
+
+const rateLineSchema = z.object({
+  designationId: z.string().min(1),
+  ratePerGuardMonthly: z.number().nonnegative(),
+  dayGuardsRequired: z.number().int().nonnegative().default(0),
+  nightGuardsRequired: z.number().int().nonnegative().default(0),
+});
 
 const rateSchema = z.object({
   ratePerGuardMonthly: z.number().nonnegative(),
@@ -9,7 +17,10 @@ const rateSchema = z.object({
   nightGuardsRequired: z.number().int().nonnegative().default(0),
   totalAgreedAmount: z.number().nonnegative(),
   withGST: z.boolean().default(true),
+  gstMode: z.enum(["COLLECTED_BY_US", "PAID_DIRECTLY_BY_SOCIETY"]).default("COLLECTED_BY_US"),
   gstPercentage: z.number().nonnegative().default(18),
+  // Designation-wise rate rows. Empty/omitted = flat-rate mode (the fields above are used as-is).
+  lines: z.array(rateLineSchema).default([]),
 });
 
 export const dynamic = "force-dynamic";
@@ -33,7 +44,7 @@ const societySchema = z.object({
 export async function GET() {
   const societies = await prisma.society.findMany({
     include: {
-      rateConfig: true,
+      rateConfig: { include: { lines: { include: { designation: true } } } },
       _count: { select: { assignments: { where: { isActive: true } } } },
     },
     orderBy: { createdAt: "desc" },
@@ -48,15 +59,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
   const { rateConfig, contactEmail, ...rest } = parsed.data;
+  const { lines, ...flatRate } = rateConfig;
+  const mergedFlat = lines.length > 0 ? { ...flatRate, ...computeFlatFieldsFromLines(lines) } : flatRate;
 
   try {
     const society = await prisma.society.create({
       data: {
         ...rest,
         contactEmail: contactEmail || null,
-        rateConfig: { create: rateConfig },
+        rateConfig: { create: { ...mergedFlat, lines: { create: lines } } },
       },
-      include: { rateConfig: true },
+      include: { rateConfig: { include: { lines: { include: { designation: true } } } } },
     });
     return NextResponse.json({ society }, { status: 201 });
   } catch (err: any) {

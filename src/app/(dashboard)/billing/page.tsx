@@ -99,7 +99,7 @@ export default function BillingPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Billing / Invoices</h1>
-          <p className="text-slate-500 text-sm">Generate invoices from agreed pricing, track payment status</p>
+          <p className="text-slate-500 dark:text-slate-400 text-sm">Generate invoices from agreed pricing, track payment status</p>
         </div>
         <button onClick={openCreate} className="btn-primary">
           + Generate Invoice
@@ -108,12 +108,12 @@ export default function BillingPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="card p-5">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Outstanding</p>
-          <p className="mt-2 text-2xl font-semibold text-amber-600">{inr(totalOutstanding)}</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Outstanding</p>
+          <p className="mt-2 text-2xl font-semibold text-amber-600 dark:text-amber-400">{inr(totalOutstanding)}</p>
         </div>
         <div className="card p-5">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Collected</p>
-          <p className="mt-2 text-2xl font-semibold text-emerald-600">{inr(totalPaid)}</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Collected</p>
+          <p className="mt-2 text-2xl font-semibold text-emerald-600 dark:text-emerald-400">{inr(totalPaid)}</p>
         </div>
       </div>
 
@@ -129,12 +129,13 @@ export default function BillingPage() {
               <th>GST</th>
               <th>Total</th>
               <th>Status</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={8} className="text-center text-slate-400 py-8">
+                <td colSpan={8} className="text-center text-slate-400 dark:text-slate-500 py-8">
                   Loading…
                 </td>
               </tr>
@@ -164,11 +165,16 @@ export default function BillingPage() {
                       ))}
                     </select>
                   </td>
+                  <td className="text-right whitespace-nowrap">
+                    <a href={`/billing/${inv.id}`} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline text-xs">
+                      View / Print
+                    </a>
+                  </td>
                 </tr>
               ))}
             {!loading && invoices.length === 0 && (
               <tr>
-                <td colSpan={8} className="text-center text-slate-400 py-8">
+                <td colSpan={9} className="text-center text-slate-400 dark:text-slate-500 py-8">
                   No invoices generated yet.
                 </td>
               </tr>
@@ -204,10 +210,10 @@ export default function BillingPage() {
             <label className="label">Notes</label>
             <textarea className="input" rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </div>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-400 dark:text-slate-500">
             Amount is calculated automatically from the society's Total Agreed Amount and GST setting.
           </p>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary">
               Cancel

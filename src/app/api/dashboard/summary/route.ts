@@ -1,24 +1,33 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const societyId = new URL(req.url).searchParams.get("societyId") || undefined;
+
   const [societies, guards, activeAssignments, todayAttendance, invoices] = await Promise.all([
-    prisma.society.findMany({ include: { rateConfig: true } }),
+    prisma.society.findMany({ where: societyId ? { id: societyId } : undefined, include: { rateConfig: true } }),
     prisma.guard.findMany({ where: { isActive: true }, include: { designation: true } }),
-    prisma.assignment.findMany({ where: { isActive: true }, include: { guard: true, society: true } }),
-    prisma.attendance.findMany({
-      where: { date: new Date(new Date().toISOString().slice(0, 10)) },
+    prisma.assignment.findMany({
+      where: { isActive: true, ...(societyId ? { societyId } : {}) },
+      include: { guard: true, society: true },
     }),
-    prisma.invoice.findMany({ orderBy: { createdAt: "desc" }, take: 5, include: { society: true } }),
+    prisma.attendance.findMany({
+      where: { date: new Date(new Date().toISOString().slice(0, 10)), ...(societyId ? { societyId } : {}) },
+    }),
+    prisma.invoice.findMany({
+      where: societyId ? { societyId } : undefined,
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      include: { society: true },
+    }),
   ]);
 
   const activeSocieties = societies.filter((s) => s.isActive).length;
-  const totalGuards = guards.length;
   const totalDeployed = activeAssignments.length;
 
-  // Billing summary: sum of totalAgreedAmount across active societies
+  // Billing summary: sum of totalAgreedAmount across active societies (or just the selected one)
   const monthlyBillableRevenue = societies
     .filter((s) => s.isActive && s.rateConfig)
     .reduce((sum, s) => sum + Number(s.rateConfig!.totalAgreedAmount), 0);
@@ -28,6 +37,9 @@ export async function GET() {
   const monthlyPayroll = guards
     .filter((g) => deployedGuardIds.has(g.id))
     .reduce((sum, g) => sum + Number(g.actualSalary), 0);
+
+  // Company-wide manpower headcount, unless scoped to one society (then: guards deployed there)
+  const totalGuards = societyId ? deployedGuardIds.size : guards.length;
 
   const estimatedMonthlyMargin = monthlyBillableRevenue - monthlyPayroll;
 
@@ -47,7 +59,7 @@ export async function GET() {
     .filter((s) => s.isActive)
     .reduce((sum, s) => sum + (s.rateConfig?.nightGuardsRequired ?? 0), 0);
 
-  // Society-wise deployment vs sanctioned strength, split by day/night
+  // Society-wise deployment vs sanctioned strength, split by day/night (just the selected society, if filtered)
   const societyBreakdown = societies
     .filter((s) => s.isActive)
     .map((s) => {
@@ -85,6 +97,7 @@ export async function GET() {
     estimatedMonthlyMargin,
     societyBreakdown,
     recentInvoices: invoices,
+    societyId: societyId ?? null,
     generatedAt: new Date().toISOString(),
   });
 }

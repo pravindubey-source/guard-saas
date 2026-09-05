@@ -82,7 +82,7 @@ export default function AssignmentsPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Deployment Assignments</h1>
-          <p className="text-slate-500 text-sm">Map manpower to society locations and shifts</p>
+          <p className="text-slate-500 dark:text-slate-400 text-sm">Map manpower to society locations and shifts</p>
         </div>
         <button onClick={openCreate} className="btn-primary">
           + New Assignment
@@ -90,7 +90,7 @@ export default function AssignmentsPage() {
       </div>
 
       <div className="flex items-center gap-3">
-        <label className="text-sm text-slate-500">Filter by society:</label>
+        <label className="text-sm text-slate-500 dark:text-slate-400">Filter by society:</label>
         <select className="input max-w-xs" value={filterSociety} onChange={(e) => setFilterSociety(e.target.value)}>
           <option value="">All societies</option>
           {societies.map((s) => (
@@ -116,7 +116,7 @@ export default function AssignmentsPage() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={6} className="text-center text-slate-400 py-8">
+                <td colSpan={6} className="text-center text-slate-400 dark:text-slate-500 py-8">
                   Loading…
                 </td>
               </tr>
@@ -132,7 +132,7 @@ export default function AssignmentsPage() {
                   </td>
                   <td className="text-xs">{new Date(a.startDate).toLocaleDateString("en-IN")}</td>
                   <td className="text-right">
-                    <button onClick={() => endAssignment(a.id)} className="text-red-500 hover:underline text-xs">
+                    <button onClick={() => endAssignment(a.id)} className="text-red-500 dark:text-red-400 hover:underline text-xs">
                       End
                     </button>
                   </td>
@@ -140,7 +140,7 @@ export default function AssignmentsPage() {
               ))}
             {!loading && filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="text-center text-slate-400 py-8">
+                <td colSpan={6} className="text-center text-slate-400 dark:text-slate-500 py-8">
                   No active assignments.
                 </td>
               </tr>
@@ -183,7 +183,7 @@ export default function AssignmentsPage() {
               ))}
             </select>
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary">
               Cancel

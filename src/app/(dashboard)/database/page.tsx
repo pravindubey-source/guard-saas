@@ -69,14 +69,14 @@ export default function DatabasePage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Explore Database</h1>
-          <p className="text-slate-500 text-sm">Browse every stored record directly — useful for verifying data or debugging</p>
+          <p className="text-slate-500 dark:text-slate-400 text-sm">Browse every stored record directly — useful for verifying data or debugging</p>
         </div>
         <button onClick={load} className="btn-secondary">
           {loading ? "Loading…" : "Refresh"}
         </button>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {data && (
         <>
@@ -86,7 +86,7 @@ export default function DatabasePage() {
                 key={t}
                 onClick={() => setActiveTable(t)}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${
-                  activeTable === t ? "bg-brand-600 text-white border-brand-600" : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
+                  activeTable === t ? "bg-brand-600 text-white border-brand-600" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700"
                 }`}
               >
                 {TABLE_LABELS[t] || t} <span className="opacity-70">({data.tables[t]?.totalCount ?? 0})</span>
@@ -115,7 +115,7 @@ export default function DatabasePage() {
                 ))}
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={Math.max(columns.length, 1)} className="text-center text-slate-400 py-8">
+                    <td colSpan={Math.max(columns.length, 1)} className="text-center text-slate-400 dark:text-slate-500 py-8">
                       No records in this table yet.
                     </td>
                   </tr>
@@ -123,7 +123,7 @@ export default function DatabasePage() {
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-400 dark:text-slate-500">
             Showing up to 200 most recent rows per table. Data refreshed at {new Date(data.generatedAt).toLocaleString("en-IN")}.
           </p>
         </>

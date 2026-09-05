@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { SessionPayload } from "@/lib/auth";
+import ThemeToggle from "@/components/ThemeToggle";
+import { COMPANY } from "@/lib/company";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "📊" },
@@ -42,9 +44,9 @@ export default function Sidebar({ user }: { user: SessionPayload }) {
         >
           ☰
         </button>
-        <div className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-md bg-brand-500 flex items-center justify-center font-bold text-sm">GS</div>
-          <span className="font-semibold text-sm">Guard SaaS</span>
+        <div className="flex items-center gap-2 min-w-0">
+          <img src={COMPANY.logoPath} alt={`${COMPANY.name} logo`} className="h-7 w-7 rounded-full shrink-0 bg-white object-contain" />
+          <span className="font-semibold text-xs truncate">{COMPANY.name}</span>
         </div>
         <span className="w-9" />
       </div>
@@ -64,10 +66,10 @@ export default function Sidebar({ user }: { user: SessionPayload }) {
         }`}
       >
         <div className="p-5 border-b border-white/10 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-lg bg-brand-500 flex items-center justify-center font-bold">GS</div>
-            <div>
-              <p className="font-semibold leading-tight">Guard SaaS</p>
+          <div className="flex items-center gap-2 min-w-0">
+            <img src={COMPANY.logoPath} alt={`${COMPANY.name} logo`} className="h-10 w-10 rounded-full shrink-0 bg-white object-contain" />
+            <div className="min-w-0">
+              <p className="font-semibold leading-tight text-sm">{COMPANY.name}</p>
               <p className="text-xs text-brand-100/70">Operations Console</p>
             </div>
           </div>
@@ -96,10 +98,13 @@ export default function Sidebar({ user }: { user: SessionPayload }) {
             );
           })}
         </nav>
-        <div className="p-4 border-t border-white/10">
-          <p className="text-xs text-brand-100/60 mb-1">Signed in as</p>
-          <p className="text-sm font-medium truncate">{user.name}</p>
-          <p className="text-xs text-brand-100/60 truncate mb-3">{user.email}</p>
+        <div className="p-4 border-t border-white/10 space-y-3">
+          <div>
+            <p className="text-xs text-brand-100/60 mb-1">Signed in as</p>
+            <p className="text-sm font-medium truncate">{user.name}</p>
+            <p className="text-xs text-brand-100/60 truncate mb-3">{user.email}</p>
+          </div>
+          <ThemeToggle />
           <button onClick={handleLogout} className="w-full text-sm bg-white/10 hover:bg-white/20 rounded-lg py-2 transition">
             Sign out
           </button>
