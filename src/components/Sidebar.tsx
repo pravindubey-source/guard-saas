@@ -12,6 +12,8 @@ const NAV = [
   { href: "/societies", label: "Societies", icon: "🏢" },
   { href: "/guards", label: "Manpower", icon: "🛡️" },
   { href: "/assignments", label: "Assignments", icon: "🔗" },
+  { href: "/advances", label: "Salary Advances", icon: "💵" },
+  { href: "/salary", label: "Salary Slips", icon: "💰" },
   { href: "/attendance", label: "Attendance", icon: "🗓️" },
   { href: "/billing", label: "Billing / Invoices", icon: "🧾" },
   { href: "/database", label: "Explore Database", icon: "🗄️" },

@@ -44,6 +44,11 @@ enum GstMode {
   PAID_DIRECTLY_BY_SOCIETY // GST is shown for reference only; society pays it directly to the government
 }
 
+enum SalarySlipStatus {
+  GENERATED
+  PAID
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -147,8 +152,10 @@ model Guard {
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
-  assignments Assignment[]
-  attendance  Attendance[]
+  assignments    Assignment[]
+  attendance     Attendance[]
+  salaryAdvances SalaryAdvance[]
+  salarySlips    SalarySlip[]
 }
 
 // Maps a guard to a society + shift
@@ -202,4 +209,61 @@ model Invoice {
   notes         String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+}
+
+// A cash advance given to a guard, to be netted off a future month's salary slip.
+// Status shown in the UI ("pending" / "adjusted") is derived: salarySlipId == null ? pending : adjusted.
+model SalaryAdvance {
+  id              String   @id @default(cuid())
+  guardId         String
+  guard           Guard    @relation(fields: [guardId], references: [id], onDelete: Cascade)
+  amount          Decimal  @db.Decimal(12, 2)
+  paymentDate     DateTime @db.Date
+  adjustmentMonth DateTime @db.Date // normalized to the 1st, e.g. 2026-10-01 = "October 2026"
+  notes           String?
+
+  salarySlipId String?
+  salarySlip   SalarySlip? @relation(fields: [salarySlipId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guardId])
+  @@index([adjustmentMonth])
+}
+
+// A generated, immutable monthly salary record for one guard. Snapshots the attendance
+// breakdown and agreed salary at generation time so later attendance corrections don't
+// silently change history — regenerate (delete + create again) if a correction is needed.
+model SalarySlip {
+  id      String   @id @default(cuid())
+  guardId String
+  guard   Guard    @relation(fields: [guardId], references: [id], onDelete: Cascade)
+  month   DateTime @db.Date // normalized to the 1st, e.g. 2026-10-01 = "October 2026"
+
+  agreedSalary     Decimal @db.Decimal(12, 2) // snapshot of Guard.actualSalary at generation time
+  totalDaysInMonth Int
+  presentDays      Int     @default(0)
+  halfDays         Int     @default(0)
+  leaveDays        Int     @default(0)
+  weeklyOffDays    Int     @default(0)
+  absentDays       Int     @default(0)
+  unmarkedDays     Int     @default(0) // calendar days in the month with no attendance record at all
+  payableDays      Decimal @db.Decimal(6, 2)
+
+  grossSalary     Decimal @db.Decimal(12, 2) // agreedSalary * payableDays / totalDaysInMonth
+  advanceDeducted Decimal @default(0) @db.Decimal(12, 2)
+  netPayable      Decimal @db.Decimal(12, 2)
+
+  status SalarySlipStatus @default(GENERATED)
+  paidOn DateTime?        @db.Date
+  notes  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  advances SalaryAdvance[] // advances this slip consumed/adjusted
+
+  @@unique([guardId, month]) // one slip per guard per month; delete + regenerate to correct
+  @@index([month])
 }
